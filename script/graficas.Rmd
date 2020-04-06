@@ -1,0 +1,65 @@
+---
+title: "Presentación de resultados"
+output: html_notebook
+---
+
+
+Estas notas se basan en el artículo https://robjhyndman.com/hyndsight/logratios-covid19/, adaptándolo al caso español.
+
+```{r}
+remotes::install_github("joachim-gassen/tidycovid19")
+library(tidyverse)
+library(tsibble)
+library(tidycovid19)
+library(ggplot2)
+```
+
+Ahora voy a usar los comandos tomados de https://kieranhealy.org/blog/archives/2020/03/21/covid-19-tracking/
+
+```{r}
+covid_curva <- covid_es %>%
+  select(Fecha, CCAA.Codigo.ISO, Casos, Fallecidos) %>%
+  drop_na(CCAA.Codigo.ISO) %>%
+  group_by(CCAA.Codigo.ISO) %>%
+  arrange(Fecha) %>%
+  mutate(casos_cum = cumsum(Casos), 
+         muertes_cum = cumsum(Fallecidos)) %>%
+  #filter(cu_deaths > 9) %>%
+  mutate(dias_transcurridos = Fecha - min(Fecha))
+  #mutate(dias_transcurridos = Fecha - min(Fecha),
+  #       end_label = ifelse(date == max(Fecha), CCAA.Codigo.ISO, NA))
+covid_curva
+```
+
+## Representación gráfica
+```{r}
+library(ggrepel)
+library(prismatic)
+library(paletteer)
+ ggplot(data=covid_curva,mapping = aes(x = dias_transcurridos, y = muertes_cum, 
+         color = CCAA.Codigo.ISO, 
+         group = CCAA.Codigo.ISO)) + 
+  geom_line(size = 0.8) + 
+  geom_text_repel(nudge_x = 1.1,
+                  nudge_y = 0.1, 
+                  segment.color = NA) + 
+  guides(color = FALSE) + 
+  scale_color_manual(values = prismatic::clr_darken(paletteer_d("ggsci::category20_d3"), 0.2)) +
+  scale_y_continuous(labels = scales::comma_format(accuracy = 1), 
+                     breaks = 2^seq(4, 12),
+                     trans = "log2") + 
+  labs(x = "Dias desde el primer caso", 
+       y = "Número de fallecimientos acumulados (escala log)", 
+       title = "Número de muertes por COVID-19, en CC.AA.", 
+       subtitle = paste("Data as of", format(max(covid_curva$Fecha), "%A, %B %e, %Y")), 
+       caption = "Juan Ramón Lacalle / Datos: MSC - España") + 
+    theme(plot.title = element_text(size = rel(2), face = "bold"),
+          plot.subtitle = element_text(size = rel(1.5)),
+          axis.text.y = element_text(size = rel(2)),
+          axis.title.x = element_text(size = rel(1.5)),
+          axis.title.y = element_text(size = rel(1.5)),
+          axis.text.x = element_text(size = rel(2)),
+          legend.text = element_text(size = rel(2))
+          )
+```
+
